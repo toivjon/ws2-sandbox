@@ -73,7 +73,7 @@ int main() {
   auto executionStatus = initWSA();
   if (executionStatus == 0) {
     // ...
-    cleanupWSA();
+    executionStatus = cleanupWSA();
   }
   return executionStatus;
 }
