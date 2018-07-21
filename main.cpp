@@ -14,7 +14,7 @@ WSADATA gWsaData;
 // This function will initialize the WSADATA structure to contain information
 // about the Windows Socket implementation. Startup takes a Winsocket version
 // as a parameter to request and define the highest supported Winsock version.
-void initWSA() {
+int initWSA() {
   auto result = WSAStartup(MAKEWORD(2, 2), &gWsaData);
   switch (result) {
     case 0:
@@ -39,9 +39,13 @@ void initWSA() {
       printf("WSAStartup failed: An unknown error code %d occured during initialization.", result);
       break;
   }
+  return result;
 }
 
 int main() {
-  initWSA();
-  return 0;
+  auto executionStatus = initWSA();
+  if (executionStatus == 0) {
+    // ...
+  }
+  return executionStatus;
 }
