@@ -364,6 +364,7 @@ int connectSocket(SOCKET socket, addrinfo** addressInfo) {
           printf("connect failed: Unknown error code %d occured.\n", errorCode);
           break;
       }
+      address = address->ai_next;
     }
   }
   return result;
