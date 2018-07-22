@@ -337,6 +337,68 @@ int listenSocket(SOCKET socket, int maxBacklogSize) {
   return result;
 }
 
+// Accept a pending client connection. Note that this function would be normally
+// used by allowing connections from multiple clients. For real high-performance
+// servers, multiple threads should be used to handle multiple client connections.
+//
+// One example from the MS documentation for handling multiple clients:
+// Create a loop that checks for connection requests using the listen function.
+// If a connection request occurs, the application calls accept and passes it to
+// a another thread to handle the actual request.
+//
+// @param socket The server socket used to accept the client.
+// @returns A descriptor for the new socket.
+SOCKET acceptClient(SOCKET socket) {
+  SOCKET clientSocket = accept(socket, NULL, NULL);
+  if (clientSocket != INVALID_SOCKET) {
+    printf("accept succeeded.\n");
+  } else {
+    auto errorCode = WSAGetLastError();
+    switch (errorCode) {
+      case WSANOTINITIALISED:
+        printf("accept failed: A successful WSAStartup call must occur before using this function.\n");
+        break;
+      case WSAECONNRESET:
+        printf("accept failed: An incoming connection was indicated but suddenhly terminated by the remote peer.\n");
+        break;
+      case WSAEFAULT:
+        printf("accept failed: The addrlen parameter is too small or addr is not a valid part of the user address space.\n");
+        break;
+      case WSAEINTR:
+        printf("accept failed: A blocking socket call was cancelled.\n");
+        break;
+      case WSAEINVAL:
+        printf("accept failed: The listen function was not invoked prior to accept.\n");
+        break;
+      case WSAEINPROGRESS:
+        printf("accept failed: A blocking socket call or callbackk is in progress.\n");
+        break;
+      case WSAEMFILE:
+        printf("accept failed: The queue is nonempty upon entry to accept and there are not descriptors available.\n");
+        break;
+      case WSAENETDOWN:
+        printf("accept failed: The network subsystem has failed.\n");
+        break;
+      case WSAENOBUFS:
+        printf("accept failed: No buffer space is available.\n");
+        break;
+      case WSAENOTSOCK:
+        printf("accept failed: The descriptor is not a socket.\n");
+        break;
+      case WSAEOPNOTSUPP:
+        printf("accept failed: The referenced socket is not a type that supports connection-oriented service.\n");
+        break;
+      case WSAEWOULDBLOCK:
+        printf("accept failed: The socket is marked as nonblocking and no connections are present to be accepted.\n");
+        break;
+      default:
+        printf("accept failed: An unknown error code %d occured.\n", errorCode);
+        break;
+    }
+  }
+  return clientSocket;
+}
+
 void startTcpServer() {
   // create an address descriptor for a TCP server socket.
   addrinfo hints;
@@ -352,8 +414,12 @@ void startTcpServer() {
     auto socket = createSocket(information);
     if (socket != INVALID_SOCKET) {
       if (bindSocket(socket, &information) == 0) {
-        if (listen(socket, SOMAXCONN)) {
-          // ...
+        if (listen(socket, SOMAXCONN) == 0) {
+          printf("Waiting for client to connect...\n");
+          auto clientSocket = acceptClient(socket);
+          if (clientSocket != INVALID_SOCKET) {
+            // ...
+          }
         }
       }
       closeSocket(socket);
