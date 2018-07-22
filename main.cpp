@@ -283,6 +283,61 @@ int bindSocket(SOCKET socket, addrinfo** addressInfo) {
   return result;
 }
 
+// Place the given socket in a state in which it is listening for incoming
+// connections. This function should be called after the server socket has
+// been successfully bound to an network address. The preferred size for the
+// backlog is SOMAXCONN, where the service automatically selects a value.
+//
+// Sidenote: This will trigger a firewall alarm when launched for a first time.
+//
+// @param socket The target socket.
+// @param maxBackLogSize The maximum length of the queue of pending connections.
+// @returns 0 on a success and SOCKET_ERROR on an error.
+int listenSocket(SOCKET socket, int maxBacklogSize) {
+  auto result = listen(socket, maxBacklogSize);
+  if (result == 0) {
+    printf("listen succeeded.\n");
+  } else {
+    auto errorCode = WSAGetLastError();
+    switch (errorCode) {
+      case WSANOTINITIALISED:
+        printf("listen failed: A successful WSAStartup call must occur before using this function.\n");
+        break;
+      case WSAENETDOWN:
+        printf("listen failed: The network subsystem has failed.\n");
+        break;
+      case WSAEADDRINUSE:
+        printf("listen failed: The socket's local address is already in use and the socket was not marked to allow address reuse.\n");
+        break;
+      case WSAEINPROGRESS:
+        printf("listen failed: A blocking socket call or callback is in progress.\n");
+        break;
+      case WSAEINVAL:
+        printf("listen failed: The socket has not been bound with bind.\n");
+        break;
+      case WSAEISCONN:
+        printf("listen failed: The socket is already connected.\n");
+        break;
+      case WSAEMFILE:
+        printf("listen failed: No more socket descriptors are available.\n");
+        break;
+      case WSAENOBUFS:
+        printf("listen failed: No buffer space is available.\n");
+        break;
+      case WSAENOTSOCK:
+        printf("listen failed: The descriptor is not a socket.\n");
+        break;
+      case WSAEOPNOTSUPP:
+        printf("listen failed: The referenced socket is not of a type that supports the listen operation.\n");
+        break;
+      default:
+        printf("listen failed: An unknown error code %d occured.\n", errorCode);
+        break;
+    }
+  }
+  return result;
+}
+
 void startTcpServer() {
   // create an address descriptor for a TCP server socket.
   addrinfo hints;
@@ -298,7 +353,9 @@ void startTcpServer() {
     auto socket = createSocket(information);
     if (socket != INVALID_SOCKET) {
       if (bindSocket(socket, &information) == 0) {
-        // ...
+        if (listen(socket, SOMAXCONN)) {
+          // ...
+        }
       }
       closeSocket(socket);
     }
