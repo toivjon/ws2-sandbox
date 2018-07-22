@@ -296,8 +296,8 @@ int bindSocket(SOCKET socket, addrinfo** addressInfo) {
 int connectSocket(SOCKET socket, addrinfo** addressInfo) {
   int result = SOCKET_ERROR;
   addrinfo* address = (*addressInfo);
-  while (result == SOCKET_ERROR && address != NULL) {
-    auto result = connect(socket, address->ai_addr, (int)address->ai_addrlen);
+  while (result != 0 && address != NULL) {
+    result = connect(socket, address->ai_addr, (int)address->ai_addrlen);
     if (result == 0) {
       printf("connect succeeded.\n");
     } else {
@@ -504,7 +504,7 @@ void startTcpServer() {
     if (socket != INVALID_SOCKET) {
       if (bindSocket(socket, &information) == 0) {
         if (listen(socket, SOMAXCONN) == 0) {
-          printf("Waiting for client to connect...\n");
+          printf("waiting for a client to connect...\n");
           auto clientSocket = acceptClient(socket);
           if (clientSocket != INVALID_SOCKET) {
             // ...
