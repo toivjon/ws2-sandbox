@@ -539,13 +539,14 @@ void startTcpClient(const char* host) {
   freeaddrinfo(information);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
   auto executionStatus = initWSA();
   if (executionStatus == 0) {
-    // TODO switch between server and client.
-    // startTcpServer();
-    startTcpClient("localhost");
-
+    if (argc > 1) {
+      startTcpClient(argv[1]);
+    } else {
+      startTcpServer();
+    }
     executionStatus = cleanupWSA();
   }
   return executionStatus;
