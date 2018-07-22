@@ -4,11 +4,19 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+// This macro fixes the problem where the target macro is not being correctly
+// recognized in the <ws2tcpip.h> header as it produces "not declared" error
+// at least for the getaddrinfo(...) function.
+#define _WIN32_WINNT 0x501
+
+#define PORT "6666"
+
+#include <cstdio>
+#include <string>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <cstdio>
 
-WSADATA gWsaData;
+WSADATA  gWsaData;
 
 // Initialize the support for Winsocks by initing the use of WS2_32.dll file.
 // This function will initialize the WSADATA structure to contain information
@@ -69,10 +77,200 @@ int cleanupWSA() {
   return result;
 }
 
+// Resolve the hostname, IP address and relevant information about the target
+// host address. This function uses the getaddrinfo to resolve network target
+// information which is needed to create a new socket to start a communication.
+//
+// @param host Pass the target hostname or NULL to resolve current machine.
+// @param hints Arguments provided as hints to resolve the required details.
+// @param info A structure to be filled with the resolved network information.
+int resolveAddress(const char* host, const addrinfo& hints, addrinfo** info) {
+  auto result = getaddrinfo(host, PORT, &hints, &*info);
+  switch (result) {
+  case 0:
+    printf("getaddrinfo succeeded.\n");
+    break;
+  case WSATRY_AGAIN:
+    printf("getaddrinfo failed: A temporary failure in name resolution occured.\n");
+    break;
+  case WSAEINVAL:
+    printf("getaddrinfo failed: An invalid value was provided for the ai_flags member of the hints parameter.\n");
+    break;
+  case WSANO_RECOVERY:
+    printf("getaddrinfo failed: A nonrecoverable failure in name resolution occured.\n");
+    break;
+  case WSAEAFNOSUPPORT:
+    printf("getaddrinfo failed: The ai_family member of the hints parameter is not supported.\n");
+    break;
+  case WSA_NOT_ENOUGH_MEMORY:
+    printf("getaddrinfo failed: A memory allocation failure occured.\n");
+    break;
+  case WSAHOST_NOT_FOUND:
+    printf("getaddrinfo failed: nodename and service parameter were not provided or the name does not resolve.\n");
+    break;
+  case WSATYPE_NOT_FOUND:
+    printf("getaddrinfo failed: The service parameter is not supported for the specified ai_socktype.\n");
+    break;
+  case WSAESOCKTNOSUPPORT:
+    printf("getaddrinfo failed: The ai_socktype member of the hints parameter is not supported.\n");
+    break;
+  case WSANO_DATA:
+    printf("getaddrinfo failed: The requested name is valid, but no data of the requested type was found.\n");
+    break;
+  case WSANOTINITIALISED:
+    printf("getaddrinfo failed: A successful WSAStartup call must occur before using this function.\n");
+    break;
+  default:
+    printf("getaddrinfo failed: An unknown error code %d occured..\n", result);
+    break;
+  }
+  return result;
+}
+
+// Create a new Windows socket for the given address information descriptor.
+// This function will use the provided address information details to create
+// a new socket either for a server or client socket based on the details.
+//
+// @param addressInfo An information container about the network address.
+SOCKET createSocket(const addrinfo* addressInfo) {
+  auto result = socket(addressInfo->ai_family, addressInfo->ai_socktype, addressInfo->ai_protocol);
+  if (result != INVALID_SOCKET) {
+    printf("socket succeeded.\n");
+  } else {
+    auto errorCode = WSAGetLastError();
+    switch (errorCode) {
+      case WSANOTINITIALISED:
+        printf("socket failed: A successful WSAStartup call must occur before using this function.\n");
+        break;
+      case WSAENETDOWN:
+        printf("socket failed: The network subsystem or the associated service provider has failed.\n");
+        break;
+      case WSAEAFNOSUPPORT:
+        printf("socket failed: The specified address family is not supported.\n");
+        break;
+      case WSAEINPROGRESS:
+        printf("socket failed: A blocking Windows Sockets 1.1 call is in progress or a callback is being handled.\n");
+        break;
+      case WSAEMFILE:
+        printf("socket failed: No more socket descriptors are available.\n");
+        break;
+      case WSAEINVAL:
+        printf("socket failed: An invalid argument was supplied.\n");
+        break;
+      case WSAEINVALIDPROVIDER:
+        printf("socket failed: The service provider returned a version other than 2.2.\n");
+        break;
+      case WSAEINVALIDPROCTABLE:
+        printf("socket failed: The service provider returned an invalid or incomplete procedure table to the WSPStartup.\n");
+        break;
+      case WSAENOBUFS:
+        printf("socket failed: No buffer space available. The socket canno be created.\n");
+        break;
+      case WSAEPROTONOSUPPORT:
+        printf("socket failed: The specified protocol is not supported.\n");
+        break;
+      case WSAEPROTOTYPE:
+        printf("socket failed: The specified protocol is the wrong type for this socket.\n");
+        break;
+      case WSAEPROVIDERFAILEDINIT:
+        printf("socket failed: The service provider failed to initializer.\n");
+        break;
+      case WSAESOCKTNOSUPPORT:
+        printf("socket failed: The specified socket type is not supported in this address family.\n");
+        break;
+      default:
+        printf("socket failed: An unknown error code %d occured.\n", errorCode);
+        break;
+    }
+  }
+  return result;
+}
+
+// Close the given existing socket. This function will first try to close the
+// socket by calling the WS2 closing function and if there's an error, it will
+// be queried from the Windows Sockets API for further use and information.
+//
+// @param socket The socket to be closed.
+int closeSocket(SOCKET socket) {
+  auto result = closesocket(socket);
+  if (result == 0) {
+    printf("closesocket succeeded.\n");
+  } else {
+    auto errorCode = WSAGetLastError();
+    switch (errorCode) {
+      case WSANOTINITIALISED:
+        printf("closesocket failed: A successful WSAStartup call must occur before using this function.\n");
+        break;
+      case WSAENETDOWN:
+        printf("closesocket failed: The network subsystem has failed.\n");
+        break;
+      case WSAENOTSOCK:
+        printf("closesocket failed: The descriptor is not a socket.\n");
+        break;
+      case WSAEINPROGRESS:
+        printf("closesocket failed: A blocking Windows Sockets call or callback is in progress.\n");
+        break;
+      case WSAEINTR:
+        printf("closesocket failed: The blocking Windows Socket call was cancelled.\n");
+        break;
+      case WSAEWOULDBLOCK:
+        printf("closesocket failed: The socket is marked as nonblocking but there is linger and nonzero timeout.\n");
+        break;
+      default:
+        printf("closesocket failed: Unknown error code %d occured.\n", errorCode);
+        break;
+    }
+  }
+  return result;
+}
+
+void startTcpServer() {
+  // create an address descriptor for a TCP server socket.
+  addrinfo hints;
+  ZeroMemory(&hints, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = IPPROTO_TCP;
+  hints.ai_flags = AI_PASSIVE;
+
+  // resolve address details and open a new socket.
+  addrinfo* information = NULL;
+  if (resolveAddress(NULL, hints, &information) == 0) {
+    auto socket = createSocket(information);
+    if (socket != INVALID_SOCKET) {
+      // ...
+      closeSocket(socket);
+    }
+  }
+  freeaddrinfo(information);
+}
+
+void startTcpClient(const char* host) {
+  // create an address descriptor for a TCP client socket.
+  addrinfo hints;
+  ZeroMemory(&hints, sizeof(hints));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = IPPROTO_TCP;
+
+  // resolve address details and open a new socket.
+  addrinfo* information = NULL;
+  if (resolveAddress(host, hints, &information) == 0) {
+    auto socket = createSocket(information);
+    if (socket != INVALID_SOCKET) {
+      // ...
+      closeSocket(socket);
+    }
+  }
+  freeaddrinfo(information);
+}
+
 int main() {
   auto executionStatus = initWSA();
   if (executionStatus == 0) {
-    // ...
+    // TODO switch between server and client.
+    startTcpServer();
+
     executionStatus = cleanupWSA();
   }
   return executionStatus;
