@@ -489,6 +489,58 @@ SOCKET acceptClient(SOCKET socket) {
   return clientSocket;
 }
 
+// Shutdown the target socket with the desired shutdown type. This function is
+// used to close all or partial activity with the given connected socket. Note
+// that server socket (the one that is used to accept new clients) must not be
+// closed by using this function.
+//
+// Allowed values for the shutdownType are:
+//   SD_RECEIVE...Shutdown receive operations.
+//   SD_SEND......Shutdown send operations.
+//   SD_BOTH......Shutdown both send and receive operations.
+//
+// @param socket A socket to be shutdown.
+// @param shutdownType The way how the socket should be shutdown.
+// @returns 0 on a success and SOCKET_ERROR on an error.
+int shutdownSocket(SOCKET socket, int shutdownType) {
+  auto result = shutdown(socket, shutdownType);
+  if (result == 0) {
+    printf("shutdown succeeded.\n");
+  } else {
+    auto errorCode = WSAGetLastError();
+    switch (errorCode) {
+      case WSAECONNABORTED:
+        printf("shutdown failed: The virtual circuit was terminated due to a time-out or other failure.\n");
+        break;
+      case WSAECONNRESET:
+        printf("shutdown failed: The virtual circuit was reset by the remote side executing a hard or abortive close.\n");
+        break;
+      case WSAEINPROGRESS:
+        printf("shutdown failed: A blocking socket call or callback is in progress.\n");
+        break;
+      case WSAEINVAL:
+        printf("shutdown failed: The shutdown type is not valid or consistent with the socket type.\n");
+        break;
+      case WSAENETDOWN:
+        printf("shutdown failed: The network subsystem has failed.\n");
+        break;
+      case WSAENOTCONN:
+        printf("shutdown failed: The socket is not connected.\n");
+        break;
+      case WSAENOTSOCK:
+        printf("shutdown failed: The target socket is not actually a socket.\n");
+        break;
+      case WSANOTINITIALISED:
+        printf("shutdown failed: A successful WSAStartup call must occur before using this function.\n");
+        break;
+      default:
+        printf("shutdown failed: An unknown error code %d occured.\n", errorCode);
+        break;
+    }
+  }
+  return result;
+}
+
 void startTcpServer() {
   // create an address descriptor for a TCP server socket.
   addrinfo hints;
@@ -509,6 +561,8 @@ void startTcpServer() {
           auto clientSocket = acceptClient(socket);
           if (clientSocket != INVALID_SOCKET) {
             // ...
+            shutdownSocket(clientSocket, SD_BOTH);
+            closeSocket(clientSocket);
           }
         }
       }
@@ -533,6 +587,7 @@ void startTcpClient(const char* host) {
     if (socket != INVALID_SOCKET) {
       if (connectSocket(socket, &information) == 0) {
         // ...
+        shutdownSocket(socket, SD_BOTH);
       }
       closeSocket(socket);
     }
