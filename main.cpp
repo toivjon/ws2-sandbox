@@ -282,6 +282,93 @@ int bindSocket(SOCKET socket, addrinfo** addressInfo) {
   return result;
 }
 
+// Connect to the target address with the given client socket. Note that the
+// provided socket must be created successfully before using this function.
+// When this function returns successfully, the target socket can be used to
+// perform write and read operations to communicate with the server.
+//
+// Note: This function iterates over the whole linked list of addresses in
+//       the provided address information structure pointer.
+//
+// @param socket The target client socket.
+// @param addressInfo The address information about the server.
+// @returns 0 on a success and SOCKET_ERROR on an error.
+int connectSocket(SOCKET socket, addrinfo** addressInfo) {
+  int result = SOCKET_ERROR;
+  addrinfo* address = (*addressInfo);
+  while (result == SOCKET_ERROR && address != NULL) {
+    auto result = connect(socket, address->ai_addr, (int)address->ai_addrlen);
+    if (result == 0) {
+      printf("connect succeeded.\n");
+    } else {
+      auto errorCode = WSAGetLastError();
+      switch (errorCode) {
+        case WSANOTINITIALISED:
+          printf("connect failed: A successful WSAStartup call must occur before using this function.\n");
+          break;
+        case WSAENETDOWN:
+          printf("connect failed: The network susbsystem has failed.\n");
+          break;
+        case WSAEADDRINUSE:
+          printf("connect failed: The socket's local address is already in use and the socket was not marked to allow address reuse.\n");
+          break;
+        case WSAEINTR:
+          printf("connect failed: The blocking socket call was canceled.\n");
+          break;
+        case WSAEINPROGRESS:
+          printf("connect failed: A blocking sockets call or callback is in progress.\n");
+          break;
+        case WSAEALREADY:
+          printf("connect failed: A nonblocking connect call is in progress on the specified port.\n");
+          break;
+        case WSAEADDRNOTAVAIL:
+          printf("connect failed: The remote address is not a valid address.\n");
+          break;
+        case WSAEAFNOSUPPORT:
+          printf("connect failed: Addresses in the specified family cannot be used with this socket.\n");
+          break;
+        case WSAECONNREFUSED:
+          printf("connect failed: The attempt to connect was forcefully rejected.\n");
+          break;
+        case WSAEFAULT:
+          printf("connect failed: The sockaddr structure pointed to the name contains incorrect address format.\n");
+          break;
+        case WSAEINVAL:
+          printf("connect failed: The socket is a listening socket.\n");
+          break;
+        case WSAEISCONN:
+          printf("connect failed: The socket is already connected.\n");
+          break;
+        case WSAENETUNREACH:
+          printf("connect failed: The network cannot be reached from this host at this time.\n");
+          break;
+        case WSAEHOSTUNREACH:
+          printf("connect failed: A socket operation was attempted to an unreachable host.\n");
+          break;
+        case WSAENOBUFS:
+          printf("connect failed: No buffer space is available.\n");
+          break;
+        case WSAENOTSOCK:
+          printf("connect failed: The given socket is not actually a socket.\n");
+          break;
+        case WSAETIMEDOUT:
+          printf("connect failed: An attempt to connect timed out without establishing a connection.\n");
+          break;
+        case WSAEWOULDBLOCK:
+          printf("connect failed: The socket is marked as nonblocking and the connection cannot be completed immediately.\n");
+          break;
+        case WSAEACCES:
+          printf("connect failed: An attempt to connect a datagram socket to broadcast address failed.\n");
+          break;
+        default:
+          printf("connect failed: Unknown error code %d occured.\n", errorCode);
+          break;
+      }
+    }
+  }
+  return result;
+}
+
 // Place the given socket in a state in which it is listening for incoming
 // connections. This function should be called after the server socket has
 // been successfully bound to an network address. The preferred size for the
@@ -443,7 +530,9 @@ void startTcpClient(const char* host) {
   if (resolveAddress(host, hints, &information) == 0) {
     auto socket = createSocket(information);
     if (socket != INVALID_SOCKET) {
-      // ...
+      if (connectSocket(socket, &information) == 0) {
+        // ...
+      }
       closeSocket(socket);
     }
   }
@@ -454,7 +543,8 @@ int main() {
   auto executionStatus = initWSA();
   if (executionStatus == 0) {
     // TODO switch between server and client.
-    startTcpServer();
+    // startTcpServer();
+    startTcpClient("localhost");
 
     executionStatus = cleanupWSA();
   }
