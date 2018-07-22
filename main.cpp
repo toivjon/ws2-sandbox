@@ -22,6 +22,8 @@ WSADATA  gWsaData;
 // This function will initialize the WSADATA structure to contain information
 // about the Windows Socket implementation. Startup takes a Winsocket version
 // as a parameter to request and define the highest supported Winsock version.
+//
+// @returns 0 on a success and a non-zero on an error.
 int initWSA() {
   auto result = WSAStartup(MAKEWORD(2, 2), &gWsaData);
   switch (result) {
@@ -53,6 +55,8 @@ int initWSA() {
 // Shutdown and release the handle holding a usage reference to WS2_32.dll file.
 // This function will release the OS handle to Windows Sockets so the library is
 // aware that it is no longer needed or used by this application.
+//
+// @returns 0 on a success and a non-zero on an error.
 int cleanupWSA() {
   auto result = WSACleanup();
   if (result == 0) {
@@ -84,6 +88,7 @@ int cleanupWSA() {
 // @param host Pass the target hostname or NULL to resolve current machine.
 // @param hints Arguments provided as hints to resolve the required details.
 // @param info A structure to be filled with the resolved network information.
+// @returns 0 on a success and a non-zero on an error.
 int resolveAddress(const char* host, const addrinfo& hints, addrinfo** info) {
   auto result = getaddrinfo(host, PORT, &hints, &*info);
   switch (result) {
@@ -132,6 +137,7 @@ int resolveAddress(const char* host, const addrinfo& hints, addrinfo** info) {
 // a new socket either for a server or client socket based on the details.
 //
 // @param addressInfo An information container about the network address.
+// @returns A new valid socket or INVALID_SOCKET on an error.
 SOCKET createSocket(const addrinfo* addressInfo) {
   auto result = socket(addressInfo->ai_family, addressInfo->ai_socktype, addressInfo->ai_protocol);
   if (result != INVALID_SOCKET) {
@@ -191,6 +197,7 @@ SOCKET createSocket(const addrinfo* addressInfo) {
 // be queried from the Windows Sockets API for further use and information.
 //
 // @param socket The socket to be closed.
+// @returns 0 on a success and SOCKET_ERROR on an error.
 int closeSocket(SOCKET socket) {
   auto result = closesocket(socket);
   if (result == 0) {
@@ -224,6 +231,58 @@ int closeSocket(SOCKET socket) {
   return result;
 }
 
+// Bound the target socket to a network address within the system. Bound is required
+// to a server socket to start accepting incoming client connections. This function
+// should be used with a successfully created socket and queried address information.
+//
+// @param socket The target socket.
+// @param addressInfo A reference to the address information pointer.
+// @returns 0 on a success and SOCKET_ERROR on an error.
+int bindSocket(SOCKET socket, addrinfo** addressInfo) {
+  auto result = bind(socket, (*addressInfo)->ai_addr, (int)(*addressInfo)->ai_addrlen);
+  if (result == 0) {
+    printf("bind succeeded.\n");
+  } else {
+    auto errorCode = WSAGetLastError();
+    switch (errorCode) {
+      case WSANOTINITIALISED:
+        printf("bind failed: A successful WSAStartup call must occur before using this function.\n");
+        break;
+      case WSAENETDOWN:
+        printf("bind failed: The network subsystem has failed.\n");
+        break;
+      case WSAEACCES:
+        printf("bind failed: An attempt was made to access a socket in a way forbidden by its access permissions.\n");
+        break;
+      case WSAEADDRINUSE:
+        printf("bind failed: Computer has already bound a socket to the same protocol, network address and port.\n");
+        break;
+      case WSAEADDRNOTAVAIL:
+        printf("bind failed: The requested address is not valid in its context.\n");
+        break;
+      case WSAEFAULT:
+        printf("bind failed: System detected an invalid pointer address to use a pointer argument in a call.\n");
+        break;
+      case WSAEINPROGRESS:
+        printf("bind failed: A blocking socket call or callback handling is in progress.\n");
+        break;
+      case WSAEINVAL:
+        printf("bind failed: An invalid argument was supplied (socket is already bound to an address).\n");
+        break;
+      case WSAENOBUFS:
+        printf("bind failed: There's not enought buffers available or there are too many connections.\n");
+        break;
+      case WSAENOTSOCK:
+        printf("bind failed: An operation was attempted on something that is not a socket.\n");
+        break;
+      default:
+        printf("bind failed: Unknown error code %d occured.\n", errorCode);
+        break;
+    }
+  }
+  return result;
+}
+
 void startTcpServer() {
   // create an address descriptor for a TCP server socket.
   addrinfo hints;
@@ -238,7 +297,9 @@ void startTcpServer() {
   if (resolveAddress(NULL, hints, &information) == 0) {
     auto socket = createSocket(information);
     if (socket != INVALID_SOCKET) {
-      // ...
+      if (bindSocket(socket, &information) == 0) {
+        // ...
+      }
       closeSocket(socket);
     }
   }
