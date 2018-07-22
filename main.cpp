@@ -341,6 +341,8 @@ int listenSocket(SOCKET socket, int maxBacklogSize) {
 // used by allowing connections from multiple clients. For real high-performance
 // servers, multiple threads should be used to handle multiple client connections.
 //
+// NOTE: This function blocks until a new client connection is received.
+//
 // One example from the MS documentation for handling multiple clients:
 // Create a loop that checks for connection requests using the listen function.
 // If a connection request occurs, the application calls accept and passes it to
