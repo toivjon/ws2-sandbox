@@ -9,13 +9,15 @@
 // at least for the getaddrinfo(...) function.
 #define _WIN32_WINNT 0x501
 
-#define PORT "6666"
+#define PORT        "6666"
+#define BUFFER_SIZE 512
 
 #include <cstdio>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
 WSADATA  gWsaData;
+char     gBuffer[BUFFER_SIZE];
 
 // Initialize the support for Winsocks by initing the use of WS2_32.dll file.
 // This function will initialize the WSADATA structure to contain information
@@ -541,6 +543,157 @@ int shutdownSocket(SOCKET socket, int shutdownType) {
   return result;
 }
 
+// Receive data from the target socket. This blocking function will wait until
+// some data is received from the target socket. Note that data may be send in
+// a patch, where a single incoming data may be split into network junks.
+//
+// @param socket A valid client socket.
+// @returns 0 on a connection close, SOCKET_ERROR on an error and data length otherwise.
+int receive(SOCKET socket) {
+  auto result = recv(socket, gBuffer, BUFFER_SIZE, 0);
+  if (result == 0) {
+    printf("recv interrupted: The connection was closed by the remote end point.\n");
+  } else if (result != SOCKET_ERROR) {
+    gBuffer[BUFFER_SIZE-1] = '\0';
+    printf("recv succeeded: %s\n", gBuffer);
+  } else {
+    auto errorCode = WSAGetLastError();
+    switch (errorCode) {
+      case WSANOTINITIALISED:
+        printf("recv failed: A successful WSAStartup call must occur before using this function.\n");
+        break;
+      case WSAENETDOWN:
+        printf("recv failed: The network subsystem has failed.\n");
+        break;
+      case WSAEFAULT:
+        printf("recv failed: The buffer is not completely contained in a valid part of the user address space.\n");
+        break;
+      case WSAENOTCONN:
+        printf("recv failed: The socket is not connected.\n");
+        break;
+      case WSAEINTR:
+        printf("recv failed: The blocking call was canceled.\n");
+        break;
+      case WSAEINPROGRESS:
+        printf("recv failed: A blocking socket call or callback is inprogress.\n");
+        break;
+      case WSAENETRESET:
+        printf("recv failed: Connection has been broken due to keep-alive activity with operation in progress.\n");
+        break;
+      case WSAENOTSOCK:
+        printf("recv failed: The given socket is not an actual socket.\n");
+        break;
+      case WSAEOPNOTSUPP:
+        printf("recv failed: The receive operation is not supported with the current socket configuration.\n");
+        break;
+      case WSAESHUTDOWN:
+        printf("recv failed: The socket has been shut down.\n");
+        break;
+      case WSAEWOULDBLOCK:
+        printf("recv failed: The socket is marked as nonblocking and the receive operation would block.\n");
+        break;
+      case WSAEMSGSIZE:
+        printf("recv failed: The message was too large to fit into the specified buffer and was truncated.\n");
+        break;
+      case WSAEINVAL:
+        printf("recv failed: The socket has not been bound with bind, or an unknown flag was specified.\n");
+        break;
+      case WSAECONNABORTED:
+        printf("recv failed: The virtual circuit was terminated due to a time-out or other failure.\n");
+        break;
+      case WSAETIMEDOUT:
+        printf("recv failed: The connection has been dropped because of a network failure or bevause the peer system.\n");
+        break;
+      case WSAECONNRESET:
+        printf("recv failed: The virtual circuit was reset by the remote side executing a hard or abortive close.\n");
+        break;
+      default:
+        printf("recv failed: An unknown error code %d occured.\n", errorCode);
+        break;
+    }
+  }
+  return result;
+}
+
+// Send the provided data message to the target socket. This function will send
+// the given message, which may or may not be split into junks depending on the
+// network configuration. This function blocks until the full message is sent.
+//
+// @param socket A valid client socket.
+// @param data The data to be sent.
+// @returns The amount of data that was send and SOCKET_ERROR on an error.
+int send(SOCKET socket, const char* data) {
+  auto result = send(socket, data, (int)strlen(data), 0);
+  if (result != SOCKET_ERROR) {
+    printf("send succeeded.\n");
+  } else {
+    auto errorCode = WSAGetLastError();
+    switch (errorCode) {
+      case WSANOTINITIALISED:
+        printf("send failed: A successful WSAStartup call must occur before using this function.\n");
+        break;
+      case WSAENETDOWN:
+        printf("send failed: The network subsystem has failed.\n");
+        break;
+      case WSAEACCES:
+        printf("send failed: The requested address ia broadcast address and the appropriate flag was not set.\n");
+        break;
+      case WSAEINTR:
+        printf("send failed: A blocking sockets call was canceled.\n");
+        break;
+      case WSAEINPROGRESS:
+        printf("send failed: A blockin sockets call or callback is in progress.\n");
+        break;
+      case WSAEFAULT:
+        printf("send failed: The buffer parameter is not completely contained in a valid part of the user address space.\n");
+        break;
+      case WSAENETRESET:
+        printf("send failed: The connection has been broken due the keep-alive activity detecting a failure.\n");
+        break;
+      case WSAENOBUFS:
+        printf("send failed: No buffer space is available.\n");
+        break;
+      case WSAENOTCONN:
+        printf("send failed: The socket is not connected.\n");
+        break;
+      case WSAENOTSOCK:
+        printf("send failed: The given socket is not actually a socket.\n");
+        break;
+      case WSAEOPNOTSUPP:
+        printf("send failed: The send operation is not supported with the current socket configuration.\n");
+        break;
+      case WSAESHUTDOWN:
+        printf("send failed: The socket has been shut down.\n");
+        break;
+      case WSAEWOULDBLOCK:
+        printf("send failed: The socked is marked as nonblocking and the requested operation would block.\n");
+        break;
+      case WSAEMSGSIZE:
+        printf("send failed: The socket is message oriented, and the message is larger than the transport allows.\n");
+        break;
+      case WSAEHOSTUNREACH:
+        printf("send failed: The remote host cannot be reached from this host at this time.\n");
+        break;
+      case WSAEINVAL:
+        printf("send failed: The socket has not been bound with bind or an unknown flag was specified.\n");
+        break;
+      case WSAECONNABORTED:
+        printf("send failed: The virtual circuit was terminated due to a time-out or other failure.\n");
+        break;
+      case WSAECONNRESET:
+        printf("send failed: The virtual circuit was reset by the remote side executing a hard or abortive close.\n");
+        break;
+      case WSAETIMEDOUT:
+        printf("send failed: The connection has been dropped because of network failure or system down.\n");
+        break;
+      default:
+        printf("send failed: An unknown error code %d occured.\n", errorCode);
+        break;
+    }
+  }
+  return result;
+}
+
 void startTcpServer() {
   // create an address descriptor for a TCP server socket.
   addrinfo hints;
@@ -561,6 +714,7 @@ void startTcpServer() {
           auto clientSocket = acceptClient(socket);
           if (clientSocket != INVALID_SOCKET) {
             // ...
+            receive(clientSocket);
             shutdownSocket(clientSocket, SD_BOTH);
             closeSocket(clientSocket);
           }
@@ -587,6 +741,7 @@ void startTcpClient(const char* host) {
     if (socket != INVALID_SOCKET) {
       if (connectSocket(socket, &information) == 0) {
         // ...
+        send(socket, "Hello world!");
         shutdownSocket(socket, SD_BOTH);
       }
       closeSocket(socket);
