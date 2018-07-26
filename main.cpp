@@ -38,7 +38,7 @@ int initWSA() {
       printf("WSAStartup failed: The requested Windows Sockets version is not supported.\n");
       break;
     case WSAEINPROGRESS:
-      printf("WSAStartup failed: A blocking Windows Sockets 1.1 operation is in progress.\n");
+      printf("WSAStartup failed: A blocking socket operation is in progress.\n");
       break;
     case WSAEPROCLIM:
       printf("WSAStartup failed: A task limit of Windows Sockets implementation has been reached.\n");
@@ -72,7 +72,7 @@ int cleanupWSA() {
         printf("WSACleanup failed: The network subsystem has failed.\n");
         break;
       case WSAEINPROGRESS:
-        printf("WSACleanup failed: A blocking callback or Windows Sockets 1.1 call is still in progress.\n");
+        printf("WSACleanup failed: A blocking callback or socket call is still in progress.\n");
         break;
       default:
         printf("WSACleanup failed: An unknown error code %d occured during cleanup.\n", errorCode);
@@ -156,7 +156,7 @@ SOCKET createSocket(const addrinfo* addressInfo) {
         printf("socket failed: The specified address family is not supported.\n");
         break;
       case WSAEINPROGRESS:
-        printf("socket failed: A blocking Windows Sockets 1.1 call is in progress or a callback is being handled.\n");
+        printf("socket failed: A blocking socket call is in progress or a callback is being handled.\n");
         break;
       case WSAEMFILE:
         printf("socket failed: No more socket descriptors are available.\n");
@@ -713,8 +713,8 @@ void startTcpServer() {
           printf("waiting for a client to connect...\n");
           auto clientSocket = acceptClient(socket);
           if (clientSocket != INVALID_SOCKET) {
-            // ...
             receive(clientSocket);
+            send(clientSocket, "A message from the server!");
             shutdownSocket(clientSocket, SD_BOTH);
             closeSocket(clientSocket);
           }
@@ -740,8 +740,8 @@ void startTcpClient(const char* host) {
     auto socket = createSocket(information);
     if (socket != INVALID_SOCKET) {
       if (connectSocket(socket, &information) == 0) {
-        // ...
-        send(socket, "Hello world!");
+        send(socket, "A message from the client!");
+        receive(socket);
         shutdownSocket(socket, SD_BOTH);
       }
       closeSocket(socket);
