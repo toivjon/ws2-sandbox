@@ -12,10 +12,13 @@ When compiling manually, remember to link against ws2_32 library.
 This application can be started in a server or client mode. It is preferred to first start the server before the client as the client will automatically try to connect to the server and exit if it's not available.
 
 Application startup syntax
+
 **test.exe [target-ip]**
 
 An example to start a server
+
 **$ test.exe**
 
 An example to start a client
+
 **$ test.exe 127.0.0.1**
